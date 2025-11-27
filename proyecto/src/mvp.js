@@ -1,127 +1,258 @@
 // src/mvp.js
-import { supabase } from './supabase.js';
+import { supabase } from "./supabase.js";
 
-export function mostrarMVP() {
-  const app = document.getElementById('app');
+export async function mostrarMVP() {
+
+  const app = document.getElementById("app");
+
   app.innerHTML = `
-<section style="max-width:600px;margin:40px auto;padding:20px;
-background:#fff;border-radius:12px;box-shadow:0 3px 10px rgba(0,0,0,0.15);
-font-family:Arial">
+  <style>
+    #mvp {
+      max-width: 1000px;
+      margin: 40px auto;
+      background: #f8fafc;
+      padding: 25px;
+      border-radius: 14px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      font-family: 'Segoe UI', sans-serif;
+    }
 
-<h2 style="text-align:center;margin-bottom:20px;">Crear Post</h2>
+    #mvp h2, #mvp h3 {
+      text-align: center;
+      color: #1e3a8a;
+    }
 
-<form id="post-form" style="display:flex;flex-direction:column;gap:15px">
+    .seccion {
+      margin-top: 25px;
+    }
 
-  <textarea 
-    name="contenido" 
-    placeholder="¿Qué estás pensando?" 
-    required
-    style="padding:12px;border:1px solid #ccc;border-radius:8px;min-height:90px"
-  ></textarea>
+    #actividad-form input,
+    #actividad-form textarea,
+    #actividad-form select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      margin-bottom: 10px;
+    }
 
-  <button type="submit" style="
-    padding:12px;background:#007bff;color:white;font-weight:bold;
-    border:none;border-radius:8px;cursor:pointer;">
-    Publicar
-  </button>
+    #actividad-form button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
 
-</form>
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
 
-<p id="mensaje" style="text-align:center;margin-top:10px;"></p>
+    .actividad {
+      background: white;
+      padding: 14px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
 
-<h3 style="margin-top:40px">Mis Posts</h3>
-<div id="lista-posts"></div>
+    .propia { border-left: 5px solid #2563eb; }
+    .externa { border-left: 5px solid #10b981; }
 
-</section>
+    .actividad img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+
+    #mensaje {
+      margin-top: 8px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .badge {
+      font-size: 12px;
+      padding: 4px 8px;
+      background: #e5e7eb;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+
+  </style>
+
+  <section id="mvp">
+    <h2>Actividades Académicas</h2>
+
+    <div class="seccion">
+      <form id="actividad-form">
+        <h3>Subir actividad propia</h3>
+
+        <input type="text" name="titulo" placeholder="Título" required>
+
+        <textarea name="descripcion" placeholder="Descripción"></textarea>
+
+        <select name="tipo">
+          <option value="tarea">Tarea</option>
+          <option value="examen">Examen</option>
+          <option value="proyecto">Proyecto</option>
+          <option value="participacion">Participación</option>
+          <option value="otro">Otro</option>
+        </select>
+
+        <select name="curso" id="select-curso" required>
+          <option value="">Cargando cursos...</option>
+        </select>
+
+        <input type="text" name="imagen" placeholder="URL de imagen (opcional)">
+
+        <button type="submit">Publicar actividad</button>
+        <p id="mensaje"></p>
+      </form>
+    </div>
+
+
+    <div class="seccion">
+      <h3>Mis Actividades</h3>
+      <div id="lista-mias" class="grid"></div>
+    </div>
+
+    <div class="seccion">
+      <h3>Actividades de otros profesores</h3>
+      <div id="lista-externas" class="grid"></div>
+    </div>
+
+  </section>
   `;
 
-  const form = document.getElementById('post-form');
-  const mensaje = document.getElementById('mensaje');
-  const lista = document.getElementById('lista-posts');
+  const form = document.getElementById("actividad-form");
+  const mensaje = document.getElementById("mensaje");
+  const selectCurso = document.getElementById("select-curso");
 
-  // ============================
-  // 🔹 Cargar posts del usuario
-  // ============================
-  async function cargarPosts() {
-    lista.innerHTML = 'Cargando posts…';
+  const listaMias = document.getElementById("lista-mias");
+  const listaExternas = document.getElementById("lista-externas");
 
-    const { data: sessionData } = await supabase.auth.getUser();
-    const user = sessionData?.user;
 
-    if (!user) {
-      lista.innerHTML = '<p>⚠️ Debes iniciar sesión.</p>';
-      return;
-    }
+  // ========= USUARIO =========
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    mensaje.textContent = "Debes iniciar sesión";
+    return;
+  }
+
+
+  // ========= CARGAR CURSOS =========
+  async function cargarCursos() {
 
     const { data, error } = await supabase
-      .from('posts')
-      .select('id, contenido, creado_en')
-      .eq('user_id', user.id)
-      .order('creado_en', { ascending: false });
+      .from("cursos")
+      .select("id, nombre")
+      .order("nombre");
 
     if (error) {
-      lista.innerHTML = '<p>❌ Error al cargar posts.</p>';
+      selectCurso.innerHTML = `<option>Error cargando cursos</option>`;
       return;
     }
 
-    if (data.length === 0) {
-      lista.innerHTML = '<p>No tienes posts aún.</p>';
-      return;
-    }
-
-    lista.innerHTML = '';
-
-    data.forEach(post => {
-      const div = document.createElement('div');
-      div.style = "padding:15px;border-bottom:1px solid #ddd";
-
-      div.innerHTML = `
-        <p>${post.contenido}</p>
-        <small style="color:#777">${new Date(post.creado_en).toLocaleString()}</small>
-      `;
-
-      lista.appendChild(div);
+    selectCurso.innerHTML = `<option value="">Selecciona un curso</option>`;
+    data.forEach(curso => {
+      const opt = document.createElement("option");
+      opt.value = curso.id;
+      opt.textContent = curso.nombre;
+      selectCurso.appendChild(opt);
     });
   }
 
-  // ==============================
-  // 🔹 Crear nuevo post
-  // ==============================
-  form.addEventListener('submit', async (e) => {
+
+  // ========= CARGAR ACTIVIDADES =========
+  async function cargarActividades() {
+
+    const { data, error } = await supabase
+      .from("actividades")
+      .select(`
+        id, titulo, descripcion, tipo, imagen, estudiante_id,
+        cursos(nombre)
+      `)
+      .order("id", { ascending: false });
+
+    if (error) {
+      listaMias.innerHTML = "Error cargando actividades";
+      listaExternas.innerHTML = "";
+      return;
+    }
+
+    listaMias.innerHTML = "";
+    listaExternas.innerHTML = "";
+
+    data.forEach(act => {
+
+      const box = document.createElement("div");
+      box.className = "actividad";
+
+      const esMia = act.estudiante_id === user.id;
+      box.classList.add(esMia ? "propia" : "externa");
+
+      box.innerHTML = `
+        <span class="badge">${esMia ? "Mía" : "Profesor"}</span>
+        <strong>${act.titulo}</strong><br>
+        <small>${act.tipo}</small><br>
+        <p>${act.descripcion || ""}</p>
+        <small>Curso: ${act.cursos?.nombre || "N/A"}</small><br>
+        ${act.imagen ? `<img src="${act.imagen}">` : ""}
+      `;
+
+      (esMia ? listaMias : listaExternas).appendChild(box);
+    });
+
+    if (!listaMias.children.length)
+      listaMias.innerHTML = "<p>No tienes actividades propias.</p>";
+
+    if (!listaExternas.children.length)
+      listaExternas.innerHTML = "<p>No hay actividades externas.</p>";
+  }
+
+
+  // ========= REGISTRAR ACTIVIDAD =========
+  form.onsubmit = async e => {
+
     e.preventDefault();
-    mensaje.textContent = '';
+    mensaje.textContent = "Publicando...";
 
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData?.user;
+    const datos = new FormData(form);
 
-    if (!user) {
-      mensaje.textContent = '⚠️ Debes iniciar sesión.';
-      return;
-    }
-
-    const contenido = form.contenido.value.trim();
-
-    if (!contenido) {
-      mensaje.textContent = 'El post no puede estar vacío.';
-      return;
-    }
+    const nuevaActividad = {
+      titulo: datos.get("titulo"),
+      descripcion: datos.get("descripcion"),
+      tipo: datos.get("tipo"),
+      imagen: datos.get("imagen"),
+      curso_id: datos.get("curso"),
+      estudiante_id: user.id
+    };
 
     const { error } = await supabase
-      .from('posts')
-      .insert([{ contenido, user_id: user.id }]);
+      .from("actividades")
+      .insert([nuevaActividad]);
 
     if (error) {
       mensaje.style.color = "red";
-      mensaje.textContent = '❌ Error al publicar: ' + error.message;
+      mensaje.textContent = "Error publicando actividad";
       return;
     }
 
     mensaje.style.color = "green";
-    mensaje.textContent = '✅ Post publicado';
+    mensaje.textContent = "Actividad publicada ✅";
     form.reset();
-    cargarPosts();
-  });
+    cargarActividades();
+  };
 
-  // Inicializar
-  cargarPosts();
+
+  // ========= INICIAR =========
+  cargarCursos();
+  cargarActividades();
+
 }

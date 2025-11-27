@@ -4,6 +4,7 @@ import { mostrarLogin } from "./login.js";
 import { mostrarMVP } from "./mvp.js";
 import { mostrarUser } from "./user.js";
 import { mostrarAdmin } from "./admin.js";
+import { mostrarPosts } from "./posts.js";   // ✅ NUEVO IMPORT
 
 /* -------------------- RUTAS DISPONIBLES -------------------- */
 const routes = {
@@ -11,11 +12,12 @@ const routes = {
   login: mostrarLogin,
   actividades: mostrarMVP,
   usuarios: mostrarUser,
+  posts: mostrarPosts,    // ✅ NUEVO COMPONENTE
   admin: mostrarAdmin
 };
 
 /* -------------------- CERRAR SESIÓN -------------------- */
-async function CerrarSesion() {
+async function cerrarSesion() {
   await supabase.auth.signOut();
   await cargarMenu();
   mostrarRegistro();
@@ -28,76 +30,74 @@ export async function cargarMenu() {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  /* ESTILOS INCRUSTADOS */
+  /* ESTILOS DEL MENÚ */
   menu.innerHTML = `
     <style>
-      #menu {
-        width: 100%;
-        background: #f8f9fa;
-        border-bottom: 1px solid #ddd;
-      }
-
-      #menu div {
-        display: flex;
-        gap: 10px;
-        padding: 12px;
-      }
-
+      #menu { width: 100%; background: #f8f9fa; border-bottom: 1px solid #ddd; }
+      #menu div { display: flex; gap: 10px; padding: 12px; flex-wrap: wrap; }
       #menu button {
-        padding: 10px 18px;
-        border: none;
-        background: #4a90e2;
+        padding: 10px 18px; 
+        border: none; 
+        background: #4a90e2; 
         color: white;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 15px;
-        font-weight: 600;
+        border-radius: 6px; 
+        cursor: pointer; 
+        font-size: 15px; 
+        font-weight: 600; 
         transition: 0.25s ease;
       }
-
-      #menu button:hover {
-        background: #357ABD;
-      }
-
-      #menu button:active {
-        transform: scale(0.95);
-      }
+      #menu button:hover { background: #357ABD; }
+      #menu button:active { transform: scale(0.95); }
     </style>
   `;
 
-  /* MENÚ PARA VISITANTE */
+  let menuHTML = '<div>';
+
   if (!user) {
-    menu.innerHTML += `
-      <div>
-        <button data-action="register">Registrarse</button>
-        <button data-action="login">Iniciar sesión</button>
-      </div>
+    /* VISITANTE */
+    menuHTML += `
+      <button data-action="register">Registrarse</button>
+      <button data-action="login">Iniciar sesión</button>
     `;
-  }
-  /* MENÚ PARA USUARIO LOGUEADO */
-  else {
-    menu.innerHTML += `
-      <div>
-        <button data-action="actividades">Actividades</button>
-        <button data-action="usuarios">Perfil</button>
-        <button data-action="logout">Cerrar sesión</button>
-
-        ${user.email === "admin@mail.com" ? '<button data-action="admin">Admin</button>' : ""}
-      </div>
+  } else {
+    /* USUARIO LOGUEADO */
+    menuHTML += `
+      <button data-action="actividades">Actividades</button>
+      <button data-action="posts">Posts</button>      <!-- ✅ BOTÓN NUEVO -->
+      <button data-action="usuarios">Perfil</button>
+      <button data-action="logout">Cerrar sesión</button>
     `;
+
+    /* OPCIONAL: ADMIN */
+    if (user.email === "admin@mail.com") {
+      menuHTML += `<button data-action="admin">Admin</button>`;
+    }
   }
 
-  /* EVENTOS */
-  menu.querySelectorAll("button").forEach((btn) => {
+  menuHTML += '</div>';
+  menu.innerHTML += menuHTML;
+
+  /* -------------------- EVENTOS -------------------- */
+  menu.querySelectorAll("button").forEach(btn => {
     const action = btn.getAttribute("data-action");
 
     if (action === "logout") {
-      btn.addEventListener("click", CerrarSesion);
-    } else if (routes[action]) {
-      btn.addEventListener("click", routes[action]);
+      btn.addEventListener("click", cerrarSesion);
+    } 
+    else if (routes[action]) {
+      btn.addEventListener("click", () => {
+        routes[action]();
+      });
     }
   });
 }
 
 /* -------------------- INICIO -------------------- */
-document.addEventListener("DOMContentLoaded", cargarMenu);
+document.addEventListener("DOMContentLoaded", async () => {
+  await cargarMenu();
+
+  // Abrir página inicial según usuario
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) mostrarRegistro();
+  else mostrarMVP();
+});

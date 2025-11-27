@@ -1,107 +1,165 @@
 // src/login.js
-import { supabase } from './supabase.js';
-import { mostrarRegistro } from './register.js';
+import { supabase } from "./supabase.js";
+import { mostrarRegistro } from "./register.js";
 
 export function mostrarLogin() {
-  const app = document.getElementById('app');
+  const app = document.getElementById("app");
 
+  // ========== UI MODERNA Y ELEGANTE ==========
   app.innerHTML = `
-  <section style="
-    max-width: 400px;
-    margin: 40px auto;
-    padding: 25px;
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
-    font-family: Arial, sans-serif;
-  ">
+    <section style="
+      height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+      font-family:'Segoe UI', sans-serif;
+    ">
 
-    <h2 style="text-align:center; margin-bottom: 20px;">Iniciar Sesión</h2>
+      <div style="
+        width: 380px;
+        background:white;
+        padding: 35px;
+        border-radius: 14px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+        animation: aparecer .3s ease-out;
+      ">
 
-    <form id="login-form" style="display:flex; flex-direction:column; gap:15px;">
-      <input 
-        type="email" 
-        name="correo" 
-        placeholder="Correo"
-        required
-        style="padding:12px;border-radius:8px;border:1px solid #ccc;"
-      />
+        <h2 style="text-align:center; margin-bottom: 20px; color:#1e3a8a; font-size:26px;">
+          Acceso al Campus
+        </h2>
+        
+        <p style="text-align:center; color:#555; margin-bottom:20px;">
+          Inicia sesión para continuar
+        </p>
 
-      <input 
-        type="password" 
-        name="password" 
-        placeholder="Contraseña"
-        required
-        style="padding:12px;border-radius:8px;border:1px solid #ccc;"
-      />
+        <form id="login-form" style="display:flex; flex-direction:column; gap:18px;">
+          
+          <input 
+            type="email" 
+            name="correo" 
+            placeholder="Correo institucional"
+            required
+            style="
+              padding:14px;
+              border-radius:8px;
+              border:1px solid #cbd5e1;
+              font-size:15px;
+            "
+          />
 
-      <button 
-        type="submit"
-        style="
-          padding: 12px;
-          background:#007bff;
-          color:white;
-          border:none;
-          border-radius:8px;
-          cursor:pointer;
-          font-size:16px;
-          font-weight:bold;
-        "
-      >Ingresar</button>
-    </form>
+          <input 
+            type="password" 
+            name="password" 
+            placeholder="Contraseña"
+            required
+            style="
+              padding:14px;
+              border-radius:8px;
+              border:1px solid #cbd5e1;
+              font-size:15px;
+            "
+          />
 
-    <p id="error" style="color:red; margin-top:10px; text-align:center;"></p>
+          <button 
+            id="btn-login"
+            type="submit"
+            style="
+              padding: 12px;
+              background:#1e40af;
+              color:white;
+              border:none;
+              border-radius:8px;
+              cursor:pointer;
+              font-size:16px;
+              font-weight:600;
+              transition:0.25s;
+            "
+          >Ingresar</button>
+        </form>
 
-    <button id="ir-registro"
-      style="
-        width:100%;
-        margin-top:20px;
-        padding:10px;
-        border:none;
-        background:#28a745;
-        color:white;
-        border-radius:8px;
-        font-size:15px;
-        cursor:pointer;
-      "
-    >Crear cuenta</button>
+        <p id="error" style="color:red; margin-top:10px; text-align:center;"></p>
 
-  </section>
+        <button id="ir-registro"
+          style="
+            width:100%;
+            margin-top:20px;
+            padding:10px;
+            border:none;
+            background:#10b981;
+            color:white;
+            border-radius:8px;
+            font-size:15px;
+            cursor:pointer;
+            font-weight:600;
+            transition:0.25s;
+          "
+        >Crear cuenta</button>
+
+      </div>
+    </section>
+
+    <style>
+      @keyframes aparecer {
+        from { opacity:0; transform: translateY(20px); }
+        to { opacity:1; transform: translateY(0); }
+      }
+
+      #btn-login:hover {
+        background:#1d2f80;
+        transform: scale(1.03);
+      }
+
+      #ir-registro:hover {
+        background:#059669;
+        transform: scale(1.03);
+      }
+    </style>
   `;
 
-  const form = document.getElementById('login-form');
-  const errorMsg = document.getElementById('error');
-  const irRegistro = document.getElementById('ir-registro');
+  // ========== ELEMENTOS ==========
+  const form = document.getElementById("login-form");
+  const errorMsg = document.getElementById("error");
+  const irRegistro = document.getElementById("ir-registro");
+  const btnLogin = document.getElementById("btn-login");
 
-  // 🔹 Ir al registro
-  irRegistro.addEventListener('click', () => {
+  // ========== IR AL REGISTRO ==========
+  irRegistro.addEventListener("click", () => {
     mostrarRegistro();
   });
 
-  // 🔹 Login
-  form.addEventListener('submit', async (e) => {
+  // ========== LOGIN ==========
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    errorMsg.textContent = '';
-
+    errorMsg.textContent = "";
+    
     const correo = form.correo.value.trim();
     const password = form.password.value.trim();
 
     if (!correo || !password) {
-      errorMsg.textContent = 'Completa todos los campos.';
+      errorMsg.textContent = "Completa todos los campos.";
       return;
     }
 
+    // Mostrar loading
+    btnLogin.disabled = true;
+    btnLogin.textContent = "Ingresando...";
+
+    // Validar con Supabase
     const { error } = await supabase.auth.signInWithPassword({
       email: correo,
-      password: password
+      password,
     });
 
+    btnLogin.disabled = false;
+    btnLogin.textContent = "Ingresar";
+
     if (error) {
-      errorMsg.textContent = '❌ ' + error.message;
+      errorMsg.textContent = "❌ " + error.message;
       return;
     }
 
-    // Login OK → Recargar página para refrescar estado global
-    location.reload();
+    // Login OK
+    window.location.reload();
   });
 }

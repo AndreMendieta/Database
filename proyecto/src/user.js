@@ -3,111 +3,156 @@ import { supabase } from "./supabase.js";
 export async function mostrarUser() {
   const app = document.getElementById("app");
 
-  app.innerHTML = `
-  <section style="
-    max-width: 480px;
-    margin: 40px auto;
-    padding: 25px;
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
-    font-family: Arial, sans-serif;
-  ">
-
-    <h2 style="text-align:center; margin-bottom:20px;">Perfil de Usuario</h2>
-
-    <form id="user-form" style="display:flex; flex-direction:column; gap:15px;">
-
-      <label style="font-weight:bold;">Nombre</label>
-      <input 
-        type="text" id="nombre" required
-        style="padding:12px; border-radius:8px; border:1px solid #ccc;"
-      />
-
-      <label style="font-weight:bold;">Correo (solo lectura)</label>
-      <input 
-        type="email" id="correo" disabled
-        style="padding:12px; border-radius:8px; border:1px solid #ccc; background:#f2f2f2;"
-      />
-
-      <label style="font-weight:bold;">Teléfono</label>
-      <input 
-        type="text" id="telefono"
-        style="padding:12px; border-radius:8px; border:1px solid #ccc;"
-      />
-
-      <button type="submit"
-        style="
-          padding: 12px;
-          background:#007bff;
-          color:white;
-          border:none;
-          border-radius:8px;
-          font-size:16px;
-          cursor:pointer;
-          font-weight:bold;
-        "
-      >
-        Actualizar datos
-      </button>
-    </form>
-
-    <p id="mensaje" style="margin-top:15px; text-align:center;"></p>
-  </section>
-  `;
-
-  const form = document.getElementById("user-form");
-  const mensaje = document.getElementById("mensaje");
-
-  // Obtener usuario autenticado
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    mensaje.textContent = "❌ Debes iniciar sesión.";
+  if (!app) {
+    console.error("No existe #app");
     return;
   }
 
-  const uid = user.id;
+  app.innerHTML = `
+  <style>
+    #perfil {
+      max-width: 520px;
+      margin: 40px auto;
+      background: #fff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      font-family: 'Segoe UI', sans-serif;
+    }
 
-  // Cargar datos desde tabla usuarios
+    #perfil h2 {
+      text-align: center;
+      color: #1e3a8a;
+      margin-bottom: 20px;
+    }
+
+    #perfil input, #perfil textarea {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      margin-bottom: 10px;
+    }
+
+    #perfil button {
+      margin-top: 15px;
+      padding: 12px;
+      width: 100%;
+      background: #2563eb;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #perfil button:hover {
+      background: #1d4ed8;
+    }
+
+    #msg {
+      margin-top: 12px;
+      text-align: center;
+      font-weight: bold;
+    }
+  </style>
+
+  <div id="perfil">
+    <h2>Mi Perfil</h2>
+
+    <form id="formPerfil">
+      <label>Nombre</label>
+      <input type="text" id="nombre" required>
+
+      <label>Correo</label>
+      <input type="email" id="correo" disabled>
+
+      <label>Sobre mí</label>
+      <textarea id="sobre_mi" maxlength="300"></textarea>
+
+      <label>
+        <input type="checkbox" id="notificaciones"> Recibir notificaciones
+      </label><br>
+
+      <label>
+        <input type="checkbox" id="boletin"> Suscribirse al boletín
+      </label><br>
+
+      <label>
+        <input type="checkbox" id="perfil_publico"> Perfil público
+      </label>
+
+      <button type="submit">Guardar Cambios</button>
+    </form>
+
+    <p id="msg"></p>
+  </div>
+  `;
+
+  const form = document.getElementById("formPerfil");
+  const msg = document.getElementById("msg");
+
+  // inputs
+  const nombreInput = document.getElementById("nombre");
+  const correoInput = document.getElementById("correo");
+  const sobreMiInput = document.getElementById("sobre_mi");
+  const notificacionesInput = document.getElementById("notificaciones");
+  const boletinInput = document.getElementById("boletin");
+  const perfilPublicoInput = document.getElementById("perfil_publico");
+
+  // Usuario actual
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    app.innerHTML = "<p>Debes iniciar sesión.</p>";
+    return;
+  }
+
+  // Buscar perfil
   const { data, error } = await supabase
     .from("usuarios")
     .select("*")
-    .eq("id", uid)
+    .eq("id", user.id)
     .single();
 
   if (error) {
-    mensaje.style.color = "red";
-    mensaje.textContent = "❌ Error cargando datos: " + error.message;
+    msg.innerHTML = "No se pudo cargar el perfil";
+    console.error(error);
     return;
   }
 
-  // Mostrar datos
-  document.getElementById("nombre").value = data.nombre || "";
-  document.getElementById("correo").value = data.correo || "";
-  document.getElementById("telefono").value = data.telefono || "";
+  // cargar datos
+  nombreInput.value = data.nombre || "";
+  correoInput.value = user.email;
+  sobreMiInput.value = data.sobre_mi || "";
+  notificacionesInput.checked = data.notificaciones ?? false;
+  boletinInput.checked = data.boletin ?? false;
+  perfilPublicoInput.checked = data.perfil_publico ?? false;
 
-  // Guardar actualización
-  form.addEventListener("submit", async (e) => {
+  // guardar
+  form.addEventListener("submit", async e => {
     e.preventDefault();
+    msg.textContent = "Guardando...";
 
-    const nombre = document.getElementById("nombre").value.trim();
-    const telefono = document.getElementById("telefono").value.trim();
+    const actualizacion = {
+      nombre: nombreInput.value.trim(),
+      sobre_mi: sobreMiInput.value.trim(),
+      notificaciones: notificacionesInput.checked,
+      boletin: boletinInput.checked,
+      perfil_publico: perfilPublicoInput.checked
+    };
 
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from("usuarios")
-      .update({ nombre, telefono })
-      .eq("id", uid);
+      .upsert([{ id: user.id, ...actualizacion }]);
 
-    if (updateError) {
-      mensaje.style.color = "red";
-      mensaje.textContent = "❌ Error al actualizar: " + updateError.message;
+    if (error) {
+      msg.style.color = "red";
+      msg.textContent = "❌ Error guardando";
+      console.error(error);
     } else {
-      mensaje.style.color = "green";
-      mensaje.textContent = "✅ Datos actualizados correctamente";
+      msg.style.color = "green";
+      msg.textContent = "✅ Perfil actualizado";
     }
   });
 }
