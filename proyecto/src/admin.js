@@ -1,152 +1,181 @@
 // src/admin.js
 import { supabase } from "./supabase.js";
 
-/**
- * Panel Administrativo
- * - Muestra estudiantes y actividades con JOIN
- * - Permite eliminar estudiantes
- * - Permite modificar notas
- */
 export async function mostrarAdmin() {
+
+  // ====== ESTILOS ======
+  const style = document.createElement("style");
+  style.textContent = `
+    #admin-panel {
+      max-width: 1100px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #fafafa;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      font-family: Arial;
+    }
+
+    .flex {
+      display: flex;
+      gap: 30px;
+      margin-top: 20px;
+    }
+
+    .box {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      flex: 1;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .box h3 {
+      margin-bottom: 10px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    ul li {
+      padding: 12px 0;
+      border-bottom: 1px solid #ddd;
+    }
+
+    button {
+      background: #d9534f;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 5px;
+    }
+
+    #msg {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // ====== HTML ======
   const app = document.getElementById("app");
   app.innerHTML = `
-  <h2>Panel Administrativo</h2>
-
-  <section id="panel" style="display:flex; gap:40px;">
-    <div id="estudiantes" style="flex:1;"></div>
-    <div id="actividades" style="flex:2;"></div>
-  </section>
-
-  <p id="mensaje"></p>
+    <div id="admin-panel">
+      <h2>Panel Administrativo</h2>
+      <div class="flex">
+        <div id="usuarios-box" class="box"></div>
+        <div id="posts-box" class="box"></div>
+      </div>
+      <p id="msg"></p>
+    </div>
   `;
 
-  const mensaje = document.getElementById("mensaje");
-  const estudiantesDiv = document.getElementById("estudiantes");
-  const actividadesDiv = document.getElementById("actividades");
+  const msg = document.getElementById("msg");
 
-  // ✅ Verificar sesión
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
-    app.innerHTML = "<p>⚠️ Debes iniciar sesión como administrador.</p>";
+  // ===============================
+  // VALIDAR ADMIN
+  // ===============================
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    app.innerHTML = "<p>Debes iniciar sesión.</p>";
     return;
   }
 
-  // ✅ Cargar estudiantes
-  const { data: estudiantes, error: errorEst } = await supabase
-    .from("estudiantes")
-    .select("id, nombre, correo, telefono")
-    .order("nombre", { ascending: true });
-
-  if (errorEst) {
-    estudiantesDiv.innerHTML = `<p>Error cargando estudiantes: ${errorEst.message}</p>`;
+  // tu admin está registrado como:
+  // admin@correo.com
+  if (user.email !== "admin@correo.com") {
+    app.innerHTML = "<p>No tienes permisos de administrador.</p>";
     return;
   }
-if (user.email !== "daniel.diazd@uniagustiniana.edu.co") {
-app.innerHTML = "<p>⛔ No tienes permisos para acceder a este panel.</p>";
-return;
-}
-  estudiantesDiv.innerHTML = `
-  <h3>👥 Lista de Estudiantes</h3>
-  ${
-    estudiantes.length === 0
-      ? "<p>No hay estudiantes registrados.</p>"
-      : `<ul>
-        ${estudiantes.map(est => `
-          <li>
-            <strong>${escapeHtml(est.nombre)}</strong>
-            (${escapeHtml(est.correo)}) - ${escapeHtml(est.telefono || "Sin teléfono")}
-            <button class="borrar-estudiante" data-id="${est.id}">🗑 Eliminar</button>
-          </li>
-        `).join("")}
-      </ul>`
-  }
-  `;
 
-  // ✅ Cargar actividades + JOIN dinámico
-  const { data: actividades, error: errorAct } = await supabase
-    .from("actividades")
-    .select(`
-      id, titulo, descripcion, tipo, nota, imagen, creado_en,
-      estudiantes(id, nombre, correo),
-      cursos(id, nombre)
-    `)
+  // ===============================
+  // CARGAR USUARIOS
+  // ===============================
+  const { data: usuarios, error: uErr } = await supabase
+    .from("usuarios")
+    .select("*")
     .order("creado_en", { ascending: false });
 
-  if (errorAct) {
-    actividadesDiv.innerHTML = `<p>Error cargando actividades: ${errorAct.message}</p>`;
+  if (uErr) {
+    document.getElementById("usuarios-box").innerHTML = "Error cargando usuarios.";
     return;
   }
 
-  // helper join
-  function getRelated(obj, names) {
-    for (const name of names) {
-      const v = obj[name];
-      if (!v) continue;
-      if (Array.isArray(v)) return v[0] || null;
-      if (typeof v === "object") return v;
-    }
-    return null;
-  }
-
-  actividadesDiv.innerHTML = `
-  <h3>📚 Actividades Registradas</h3>
-  ${
-    actividades.length === 0
-      ? "<p>No hay actividades registradas.</p>"
-      : `<ul>
-        ${actividades.map(act => {
-          const est = getRelated(act, ["estudiante", "estudiantes"]);
-          const cur = getRelated(act, ["curso", "cursos"]);
-          
-          return `
-          <li style="border-bottom: 1px solid #ccc; padding: 8px 0;">
-            <strong>${escapeHtml(act.titulo)}</strong> (${escapeHtml(act.tipo)})
-            <br>
-            Estudiante: ${est ? escapeHtml(est.nombre) : "No disponible"} —
-            Curso: ${cur ? escapeHtml(cur.nombre) : "No disponible"}
-            <br>
-            ${escapeHtml(act.descripcion || "")}
-            <br>
-            ${act.imagen ? `<img src="${escapeAttr(act.imagen)}" width="150">` : ""}
-            <br>
-            Nota: <input type="number" min="0" max="5" step="0.1" data-id="${act.id}" class="nota-input" value="${act.nota ?? ""}">
-          </li>`;
-        }).join("")}
-      </ul>
-      <button id="guardar-notas">💾 Guardar cambios</button>`
-  }
+  document.getElementById("usuarios-box").innerHTML = `
+    <h3>Usuarios Registrados</h3>
+    <ul>
+      ${usuarios
+        .map(
+          u => `
+        <li>
+          <strong>${u.nombre}</strong> (@${u.username})<br>
+          ${u.correo}<br>
+          <button data-uid="${u.id}" class="borrar-usuario">Eliminar usuario</button>
+        </li>
+      `
+        )
+        .join("")}
+    </ul>
   `;
 
-  // ✅ Eliminar estudiante
-  document.querySelectorAll(".borrar-estudiante").forEach(btn => {
+  // ===============================
+  // CARGAR POSTS
+  // ===============================
+  const { data: posts, error: pErr } = await supabase
+    .from("posts")
+    .select(`id, contenido, creado_en, usuarios(id, nombre, username)`)
+    .order("creado_en", { ascending: false });
+
+  if (pErr) {
+    document.getElementById("posts-box").innerHTML = "Error cargando posts.";
+    return;
+  }
+
+  document.getElementById("posts-box").innerHTML = `
+    <h3>Posts</h3>
+    <ul>
+      ${posts
+        .map(
+          p => `
+        <li>
+          <strong>${p.usuarios?.nombre || "Usuario eliminado"}</strong>
+          (@${p.usuarios?.username || "-"})<br>
+          ${p.contenido}<br>
+          <button data-pid="${p.id}" class="borrar-post">Eliminar post</button>
+        </li>
+      `
+        )
+        .join("")}
+    </ul>
+  `;
+
+  // ===============================
+  // ELIMINAR USUARIO
+  // ===============================
+  document.querySelectorAll(".borrar-usuario").forEach(btn => {
     btn.onclick = async () => {
-      const id = btn.dataset.id;
-      if (!confirm("¿Eliminar estudiante y sus actividades?")) return;
-      const { error } = await supabase.from("estudiantes").delete().eq("id", id);
-      if (error) return mensaje.textContent = "❌ Error: " + error.message;
-      mensaje.textContent = "✅ Estudiante eliminado.";
+      const id = btn.dataset.uid;
+
+      await supabase.from("usuarios").delete().eq("id", id);
+      msg.textContent = "Usuario eliminado.";
       mostrarAdmin();
     };
   });
 
-  // ✅ Guardar notas
-  const guardarBtn = document.getElementById("guardar-notas");
-  if (guardarBtn) {
-    guardarBtn.onclick = async () => {
-      const inputs = document.querySelectorAll(".nota-input");
-      for (const i of inputs) {
-        await supabase.from("actividades").update({ nota: i.value }).eq("id", i.dataset.id);
-      }
-      mensaje.textContent = "✅ Notas actualizadas.";
+  // ===============================
+  // ELIMINAR POST
+  // ===============================
+  document.querySelectorAll(".borrar-post").forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.pid;
+
+      await supabase.from("posts").delete().eq("id", id);
+      msg.textContent = "Post eliminado.";
       mostrarAdmin();
     };
-  }
-}
-
-// Helpers
-function escapeHtml(str) {
-  return String(str || "").replace(/[&<>"]/g, s => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[s]));
-}
-function escapeAttr(str) {
-  return String(str || "").replace(/"/g, "&quot;");
+  });
 }

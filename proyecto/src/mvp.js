@@ -1,143 +1,127 @@
-// src/mvp.js  (o como lo tengas)
+// src/mvp.js
 import { supabase } from './supabase.js';
 
 export function mostrarMVP() {
   const app = document.getElementById('app');
   app.innerHTML = `
-<section>
-<h2>Subir Actividad (MVP)</h2>
+<section style="max-width:600px;margin:40px auto;padding:20px;
+background:#fff;border-radius:12px;box-shadow:0 3px 10px rgba(0,0,0,0.15);
+font-family:Arial">
 
-<form id="actividad-form">
-<input type="text" name="titulo" placeholder="Título" required />
-<textarea name="descripcion" placeholder="Descripción"></textarea>
+<h2 style="text-align:center;margin-bottom:20px;">Crear Post</h2>
 
-<select name="tipo">
-<option value="tarea">Tarea</option>
-<option value="examen">Examen</option>
-<option value="proyecto">Proyecto</option>
-<option value="participacion">Participación</option>
-<option value="otro">Otro</option>
-</select>
+<form id="post-form" style="display:flex;flex-direction:column;gap:15px">
 
-<select name="curso" required id="select-curso">
-<option value="">Cargando cursos...</option>
-</select>
+  <textarea 
+    name="contenido" 
+    placeholder="¿Qué estás pensando?" 
+    required
+    style="padding:12px;border:1px solid #ccc;border-radius:8px;min-height:90px"
+  ></textarea>
 
-<input type="text" name="imagen" placeholder="URL de imagen (opcional)" />
+  <button type="submit" style="
+    padding:12px;background:#007bff;color:white;font-weight:bold;
+    border:none;border-radius:8px;cursor:pointer;">
+    Publicar
+  </button>
 
-<button type="submit">Subir Actividad</button>
 </form>
 
-<p id="mensaje" style="text-align:center;"></p>
+<p id="mensaje" style="text-align:center;margin-top:10px;"></p>
 
-<h3>Mis Actividades</h3>
-<div id="lista-actividades"></div>
+<h3 style="margin-top:40px">Mis Posts</h3>
+<div id="lista-posts"></div>
 
 </section>
   `;
 
-  const form = document.getElementById('actividad-form');
+  const form = document.getElementById('post-form');
   const mensaje = document.getElementById('mensaje');
-  const lista = document.getElementById('lista-actividades');
-  const selectCurso = document.getElementById('select-curso');
+  const lista = document.getElementById('lista-posts');
 
-  // 🔹 Cargar cursos
-  async function cargarCursos() {
-    const { data, error } = await supabase
-      .from('cursos')
-      .select('id, nombre')
-      .order('nombre', { ascending: true });
+  // ============================
+  // 🔹 Cargar posts del usuario
+  // ============================
+  async function cargarPosts() {
+    lista.innerHTML = 'Cargando posts…';
 
-    if (error) {
-      selectCurso.innerHTML = `<option>Error al cargar cursos</option>`;
-      return;
-    }
-
-    selectCurso.innerHTML = `<option value="">Selecciona un curso</option>`;
-    data.forEach(curso => {
-      const opt = document.createElement('option');
-      opt.value = curso.id;
-      opt.textContent = curso.nombre;
-      selectCurso.appendChild(opt);
-    });
-  }
-
-  // 🔹 Cargar actividades del usuario
-  async function cargarActividades() {
-    lista.innerHTML = 'Cargando actividades...';
-
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
+    const { data: sessionData } = await supabase.auth.getUser();
+    const user = sessionData?.user;
 
     if (!user) {
-      mensaje.textContent = '⚠️ Debes iniciar sesión para ver tus actividades.';
-      lista.innerHTML = '';
+      lista.innerHTML = '<p>⚠️ Debes iniciar sesión.</p>';
       return;
     }
 
     const { data, error } = await supabase
-      .from('actividades')
-      .select('id, titulo, descripcion, tipo, imagen')
-      .eq('estudiante_id', user.id)
-      .order('id', { ascending: false });
+      .from('posts')
+      .select('id, contenido, creado_en')
+      .eq('user_id', user.id)
+      .order('creado_en', { ascending: false });
 
     if (error) {
-      lista.innerHTML = 'Error al cargar actividades.';
+      lista.innerHTML = '<p>❌ Error al cargar posts.</p>';
       return;
     }
 
-    if (!data.length) {
-      lista.innerHTML = '<p>No has subido actividades aún.</p>';
+    if (data.length === 0) {
+      lista.innerHTML = '<p>No tienes posts aún.</p>';
       return;
     }
 
     lista.innerHTML = '';
-    data.forEach(act => {
+
+    data.forEach(post => {
       const div = document.createElement('div');
+      div.style = "padding:15px;border-bottom:1px solid #ddd";
+
       div.innerHTML = `
-<hr>
-<h4>${act.titulo}</h4>
-<p>${act.descripcion || ''}</p>
-<p><b>Tipo:</b> ${act.tipo.toUpperCase()}</p>
-${act.imagen ? `<img src="${act.imagen}" alt="${act.titulo}" width="200">` : ''}
-`;
+        <p>${post.contenido}</p>
+        <small style="color:#777">${new Date(post.creado_en).toLocaleString()}</small>
+      `;
+
       lista.appendChild(div);
     });
   }
 
-  // 🔹 Subir nueva actividad
+  // ==============================
+  // 🔹 Crear nuevo post
+  // ==============================
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     mensaje.textContent = '';
 
     const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
+    const user = userData?.user;
 
     if (!user) {
       mensaje.textContent = '⚠️ Debes iniciar sesión.';
       return;
     }
 
-    const titulo = form.titulo.value.trim();
-    const descripcion = form.descripcion.value.trim();
-    const tipo = form.tipo.value;
-    const curso_id = form.curso.value;
-    const imagen = form.imagen.value.trim();
+    const contenido = form.contenido.value.trim();
 
-    const { error } = await supabase.from('actividades').insert([
-      { titulo, descripcion, tipo, imagen, curso_id, estudiante_id: user.id },
-    ]);
+    if (!contenido) {
+      mensaje.textContent = 'El post no puede estar vacío.';
+      return;
+    }
+
+    const { error } = await supabase
+      .from('posts')
+      .insert([{ contenido, user_id: user.id }]);
 
     if (error) {
-      mensaje.textContent = '❌ Error al subir actividad: ' + error.message;
-    } else {
-      mensaje.textContent = '✅ Actividad subida correctamente';
-      form.reset();
-      cargarActividades();
+      mensaje.style.color = "red";
+      mensaje.textContent = '❌ Error al publicar: ' + error.message;
+      return;
     }
+
+    mensaje.style.color = "green";
+    mensaje.textContent = '✅ Post publicado';
+    form.reset();
+    cargarPosts();
   });
 
-  // Inicialización
-  cargarCursos();
-  cargarActividades();
+  // Inicializar
+  cargarPosts();
 }
